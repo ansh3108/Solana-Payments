@@ -3,6 +3,7 @@ import React from "react";
 import { useWallet, WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey, Transaction, SystemProgram, clusterApiUrl, Connection } from "@solana/web3.js";
 import QRCode from "react-qr-code";
+import { createTransferInstruction, getAssociatedTokenAddress } from "@solana/spl-token";
 
 const USDC_MINT=new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 
@@ -19,13 +20,25 @@ export default function App() {
         if(!recipient || !amount) return alert("Enter recipient and amount");
 
         try {
-            const transaction = new Transaction().add(
-                SystemProgram.transfer({
-                    fromPubkey: wallet.publicKey,
-                    toPubkey: new publicKey(recipient),
-                    lamports: Number(amount)* 1e9,
-                })
-            )
+            const transaction = new Transaction();
+            const fromTokenAccount = await getAssociatedTokenAddress(
+                USDC_MINT,
+                wallet.publicKey
+            );
+            const toTokenAccount = await getAssociatedTokenAddress(
+                USDC_MINT,
+                new PublicKey(recipient)
+            );
+            
+
+            const transferIx = createTransferInstruction(
+                fromTokenAccount,
+                toTokenAccount,
+                wallet.publicKey,
+                Number(amount)*1e6
+            );
+
+            transaction.add(transferIx);
             
             const signature = await wallet.sendTransaction(transaction, connection);
             await connection.confirmTransaction(signature);

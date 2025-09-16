@@ -4,16 +4,14 @@ import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import {
     PhantomWalletAdapter,
     SolflareWalletAdapter,
-    BackpackWalletAdapter
 } from "@solana/wallet-adapter-wallets";
 
 require('@solana/wallet-adapter-react-ui/styles.css');
 
-export const WalletModalProvider = ({ children }) => {
+export const WalletContextProvider = ({ children }) => {
     const wallets = useMemo(() => [
         new PhantomWalletAdapter(),
         new SolflareWalletAdapter(),
-        new BackpackWalletAdapter()
     ], []);
 
     return(
