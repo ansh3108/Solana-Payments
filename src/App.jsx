@@ -4,9 +4,10 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey, Transaction, clusterApiUrl, Connection } from "@solana/web3.js";
 import QRCode from "react-qr-code";
-import { createTransferInstruction, getAssociatedTokenAddress, getAccount, getMint } from "@solana/spl-token";
+import { createTransferInstruction, getAssociatedTokenAddress, getAccount, getMint, mintTo } from "@solana/spl-token";
+import { createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 
-const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+const USDC_MINT = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr")
 
 export default function App() {
     const wallet = useWallet();
@@ -21,28 +22,47 @@ export default function App() {
     const [txSig, setTxSig]= useState(null);
     const [error, setError]= useState("");
 
-    const connection = new Connection(clusterApiUrl("mainnet-beta"));
+    const connection = new Connection(clusterApiUrl("devnet"));
     
     useEffect(() => {
-        const fetchBalance = async() => {
-            if(!wallet.connected){
-                setUsdcBalance(null);
-                return;
-            }
-            try {
-                const mintInfo = await getMint(connection, USDC_MINT)
-                setDecimals(mintInfo.decimals)
-
-                const ata = await getAssociatedTokenAddress(USDC_MINT, wallet.publicKey)
-                const accountInfo= await getAccount(connection, ata)
-                setUsdcBalance(Number(accountInfo.amount)/ Math.pow(10, mintInfo.decimals))
-            } catch (err) {
-                console.error("No USDC account found: ", err)
-                setUsdcBalance(0)
-            }
+    const fetchBalance = async () => {
+        if (!wallet.connected) {
+            setUsdcBalance(null);
+            return;
         }
-        fetchBalance()
-    }, [wallet, connection]);
+
+        let mintInfo;
+        try {
+            mintInfo = await getMint(connection, USDC_MINT);
+            setDecimals(mintInfo.decimals);
+        } catch (err) {
+            console.error("Failed to get mint info:", err);
+            return;
+        }
+
+        const ata = await getAssociatedTokenAddress(USDC_MINT, wallet.publicKey);
+
+        try {
+            const accountInfo = await getAccount(connection, ata);
+            setUsdcBalance(Number(accountInfo.amount) / Math.pow(10, mintInfo.decimals));
+        } catch (err) {
+            console.log("ATA not found, creating...");
+            const transaction = new Transaction().add(
+                createAssociatedTokenAccountInstruction(
+                    wallet.publicKey, 
+                    ata,               
+                    wallet.publicKey, 
+                    USDC_MINT
+                )
+            );
+            const signature = await wallet.sendTransaction(transaction, connection);
+            await connection.confirmTransaction(signature, "confirmed");
+            setUsdcBalance(0); 
+        }
+    };
+
+    fetchBalance();
+}, [wallet, connection]);
 
     const handleSend = async () => {
         setIsSending(true)
