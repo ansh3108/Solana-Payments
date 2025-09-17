@@ -9,4 +9,4 @@ root.render(
   <WalletContextProvider>
     <App />
   </WalletContextProvider>
-)
+  )

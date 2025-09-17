@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import React from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey, Transaction, clusterApiUrl, Connection } from "@solana/web3.js";
 import QRCode from "react-qr-code";
-import { createTransferInstruction, getAssociatedTokenAddress } from "@solana/spl-token";
+import { createTransferInstruction, getAssociatedTokenAddress, getAccount, getMint } from "@solana/spl-token";
 
 const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
 
@@ -15,46 +15,66 @@ export default function App() {
     const [recipient, setRecipient]= useState("");
     const [requestAmount, setRequestAmount]= useState("");
     const [qrValue, setQrValue]= useState("");
+    const [usdcBalance, setUsdcBalance]= useState(null);
+    const [ decimals, setDecimals]= useState(6);
+    const [isSending, setIsSending]= useState(false);
+    const [txSig, setTxSig]= useState(null);
+    const [error, setError]= useState("");
 
     const connection = new Connection(clusterApiUrl("mainnet-beta"));
+    
+    useEffect(() => {
+        const fetchBalance = async() => {
+            if(!wallet.connected){
+                setUsdcBalance(null);
+                return;
+            }
+            try {
+                const mintInfo = await getMint(connection, USDC_MINT)
+                setDecimals(mintInfo.decimals)
+
+                const ata = await getAssociatedTokenAddress(USDC_MINT, wallet.publicKey)
+                const accountInfo= await getAccount(connection, ata)
+                setUsdcBalance(Number(accountInfo.amount)/ Math.pow(10, mintInfo.decimals))
+            } catch (err) {
+                console.error("No USDC account found: ", err)
+                setUsdcBalance(0)
+            }
+        }
+        fetchBalance()
+    }, [wallet, connection]);
 
     const handleSend = async () => {
-        if(!wallet.connected) return alert("Connect wallet first")
-        if(!recipient || !sendAmount) return alert("Enter recipient and amount")
+        setIsSending(true)
+        setError("")
+        setTxSig(null)
 
         try {
             const transaction = new Transaction();
-            const fromTokenAccount = await getAssociatedTokenAddress(
-                USDC_MINT,
-                wallet.publicKey
-            );
-            const toTokenAccount= await getAssociatedTokenAddress(
-                USDC_MINT,
-                new PublicKey(recipient)
-            );
-            
+            const fromTokenAccount = await getAssociatedTokenAddress(USDC_MINT, wallet.publicKey);
+            const toTokenAccount = await getAssociatedTokenAddress(USDC_MINT, new PublicKey(recipient));
+
             const transferIx = createTransferInstruction(
                 fromTokenAccount,
                 toTokenAccount,
                 wallet.publicKey,
-                Number(sendAmount)*1e6
+                Number(sendAmount) * Math.pow(10, decimals)
             )
-            transaction.add(transferIx);
+            transaction.add(transferIx)
 
-            const signature=await wallet.sendTransaction(transaction, connection)
-
+            const signature = await wallet.sendTransaction(transaction, connection)
             await connection.confirmTransaction(
-                {
-                    signature,
-                    ...(await connection.getLatestBlockhash()),
-                },
+                { signature, ...(await connection.getLatestBlockhash())},
                 "confirmed"
             )
 
-            alert("transaction sent! Signature: "+signature)
+            setTxSig(signature)
+            alert("Transaction sent! Signature: "+ signature)
         } catch(err) {
-            console.error(err);
-            alert("Transaction failed!");
+            console.error(err)
+            setError(err.message || "Transaction failed!")
+        } finally {
+            setIsSending(false);
         }
     }
 
@@ -69,6 +89,13 @@ export default function App() {
     return(
         <div className="h-screen flex flex-col items-center justify-center bg-gray-100 p-4 space-y-6">
             <WalletMultiButton className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" />
+
+            {wallet.connected && (
+                <p className="text-lg font-semibold text-gray-700">
+                    USDC Balance: {usdcBalance !== null ? usdcBalance : "Loading..."}
+                </p>
+            )}
+
             <div className="flex flex-col space-y-2 w-full max-w-md">
                 <input
                     type="text"
@@ -88,10 +115,23 @@ export default function App() {
                 <button
                     onClick={handleSend}
                     className="p-3 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    disabled={isSending}
                 >
-                    Send USDC
+                    {isSending ? "Sending..." : "Send USDC"}
                 </button>
+
+                {txSig && (
+                    <p className="text-sm text-green-700 mt-2">
+                        Transaction Signature: {txSig}
+                    </p>
+                )}
+                {error && (
+                    <p className="text-sm text-red-600 mt-2">
+                        Error: {error}
+                    </p>
+                )}
             </div>
+
 
             <div className="flex flex-col space-y-2 items-center">
                 <input
