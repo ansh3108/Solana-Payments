@@ -6,6 +6,7 @@ import { PublicKey, Transaction, clusterApiUrl, Connection } from "@solana/web3.
 import QRCode from "react-qr-code";
 import { createTransferInstruction, getAssociatedTokenAddress, getAccount, getMint, mintTo } from "@solana/spl-token";
 import { createAssociatedTokenAccountInstruction } from "@solana/spl-token";
+import TransactionHistory from './TransactionHistory'
 
 const USDC_MINT = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr")
 
@@ -272,3 +273,5 @@ export default function App() {
         </div>
     )
 }
+
+
